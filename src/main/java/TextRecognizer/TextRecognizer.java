@@ -16,7 +16,6 @@ import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.util.IOUtils;
-
 import java.time.LocalDateTime;
 import java.io.File;
 import java.io.FileWriter;
@@ -26,34 +25,43 @@ import java.util.List;
 
 public class TextRecognizer {
     public static void main(String[] args) {
+        // Set bucket name and SQS name
         String bucketName = "njit-cs-643";
         String sqsName = "CarImageIndexQueue.fifo";
 
         System.out.println("Started.");
         textRecognizerPipeline(bucketName, sqsName);
+        System.out.println("Finished.");
     }
 
     private static void textRecognizerPipeline(String bucketName, String sqsName) {
-        // Read indexes from SQS queue
         LocalDateTime currentDateTime = LocalDateTime.now();
         Boolean run = true;
 
         try {
+            // Create file to write results to
             File result = new File("results/run-" + currentDateTime);
             FileWriter writeResult = new FileWriter(result);
+
+            // Loop until end of sequence
             while (run) {
                 List<Message> messagesList = receiveMessagesFromSQS(sqsName);
+                // If there are messages, process them
                 if (messagesList.size() > 0) {
                     for (Message message : messagesList) {
-                        Integer index = Integer.parseInt(message.getBody());
-                        if (index == -1) {
+                        String index = message.getBody();
+                        // If end of sequence, close file and break from loop
+                        if (index.compareTo("-1") == 0) {
                             System.out.println("End of sequence. File written to " + result.toString());
                             run = false;
                             writeResult.close();
                             break;
                         }
+                        // Get image from S3 bucket
                         ByteBuffer imageBytes = getImageFromS3Bucket(bucketName, index);
+                        // Get text from image
                         String detectedText = getDetectedText(imageBytes);
+                        // If text detected, write to file
                         if (detectedText.length() > 0) {
                             writeResult.write(index + ": " + detectedText + "\n");
                         }
@@ -65,16 +73,16 @@ public class TextRecognizer {
         }
     }
 
-    private static ByteBuffer getImageFromS3Bucket(String bucketName, Integer index) {
+    private static ByteBuffer getImageFromS3Bucket(String bucketName, String index) {
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion("us-east-1").build();
         S3ObjectInputStream s3inputStream = null;
         ByteBuffer returnBuffer = ByteBuffer.allocate(1024);
 
         try {
-            /* Send Get Object Bucket Request */
+            // Get image from S3 bucket
             S3Object object = s3.getObject(bucketName, index + ".jpg");
 
-            /* Get Object InputStream */
+            // Convert input stream to ByteBuffer
             s3inputStream = object.getObjectContent();
             System.out.println("S3: Downloaded " + index + ".jpg");
             returnBuffer = ByteBuffer.wrap(IOUtils.toByteArray(s3inputStream));
@@ -83,6 +91,7 @@ public class TextRecognizer {
         } catch (IOException e) {
             System.out.println(e.getMessage());
         } finally {
+            // Close input stream
             try {
                 if (s3inputStream != null) {
                     s3inputStream.close();
@@ -98,7 +107,7 @@ public class TextRecognizer {
         String detectedText = "";
         AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
         try {
-            // Request text
+            // Request Rekognition to detect text
             DetectTextRequest request = new DetectTextRequest()
                     .withImage(new Image()
                             .withBytes(imageBytes));
@@ -122,9 +131,9 @@ public class TextRecognizer {
         final AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
         String queueUrl = sqs.getQueueUrl(queueURL).getQueueUrl();
 
-        // receive messages from the queue
+        // Receive and save messages from the queue
         List<Message> messagesList = sqs.receiveMessage(queueUrl).getMessages();
-        // delete messages from the queue
+        // Delete messages in queue
         for (Message m : messagesList) {
             System.out.println("SQS: received " + m.getBody());
             sqs.deleteMessage(queueUrl, m.getReceiptHandle());

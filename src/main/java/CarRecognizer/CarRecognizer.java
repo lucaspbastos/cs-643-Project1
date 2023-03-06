@@ -16,7 +16,6 @@ import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.util.IOUtils;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -24,6 +23,7 @@ import java.util.UUID;
 
 public class CarRecognizer {
     public static void main(String[] args) {
+        // Set bucket name, SQS name, and indexes/file names
         String bucketName = "njit-cs-643";
         String sqsName = "CarImageIndexQueue.fifo";
         String[] indexes = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10" };
@@ -34,14 +34,21 @@ public class CarRecognizer {
     }
 
     private static void carRecognizerPipeline(String bucketName, String sqsName, String[] indexes) {
-        // Read images from S3 -> send to Rekognition -> if car, send SQS message
+        /*
+         * Read images from S3 -> send each to Rekognition -> for each, if car detected,
+         * send index as SQS message
+         */
         for (String index : indexes) {
+            // Get image from S3 bucket
             ByteBuffer imageBytes = getImageFromS3Bucket(bucketName, index);
+            // Send image to Rekognition for detecting cars
             Boolean hasCar = carDetected(imageBytes);
             if (hasCar) {
+                // Send index to SQS
                 sendMessageToSQS(sqsName, index);
             }
         }
+        // Send -1 to SQS to indicate end of pipeline
         sendMessageToSQS(sqsName, "-1");
     }
 
@@ -51,10 +58,10 @@ public class CarRecognizer {
         ByteBuffer returnBuffer = ByteBuffer.allocate(1024);
 
         try {
-            /* Send Get Object Bucket Request */
+            // Get image from S3 bucket
             S3Object object = s3.getObject(bucketName, index + ".jpg");
 
-            /* Get Object InputStream */
+            // Convert input stream to ByteBuffer
             s3inputStream = object.getObjectContent();
             System.out.println("S3: Downloaded " + index + ".jpg");
             returnBuffer = ByteBuffer.wrap(IOUtils.toByteArray(s3inputStream));
@@ -63,6 +70,7 @@ public class CarRecognizer {
         } catch (IOException e) {
             System.out.println(e.getMessage());
         } finally {
+            // Close input stream
             try {
                 if (s3inputStream != null) {
                     s3inputStream.close();
@@ -77,7 +85,7 @@ public class CarRecognizer {
     private static Boolean carDetected(ByteBuffer imageBytes) {
         AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
         try {
-            // Request text
+            // Request Rekognition to detect labels
             DetectLabelsRequest request = new DetectLabelsRequest()
                     .withImage(new Image()
                             .withBytes(imageBytes))
@@ -103,15 +111,17 @@ public class CarRecognizer {
     private static void sendMessageToSQS(String queueURL, String message) {
         final AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
         String queueUrl = sqs.getQueueUrl(queueURL).getQueueUrl();
+        // Generate a UUID for the message deduplication ID which is required for FIFO
         UUID uuid = UUID.randomUUID();
 
-        // send message to the queue
+        // Create message request
         SendMessageRequest send_msg_request = new SendMessageRequest()
                 .withQueueUrl(queueUrl)
                 .withMessageBody(message)
                 .withMessageDeduplicationId("car-group-" + uuid)
                 .withMessageGroupId("car-group");
 
+        // Send message
         System.out.println("SQS: sending \"" + message + "\"");
         sqs.sendMessage(send_msg_request);
     }

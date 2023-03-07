@@ -22,6 +22,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 public class TextRecognizer {
     public static void main(String[] args) {
@@ -59,11 +61,11 @@ public class TextRecognizer {
                         }
                         // Get image from S3 bucket
                         ByteBuffer imageBytes = getImageFromS3Bucket(bucketName, index);
-                        // Get text from image
-                        String detectedText = getDetectedText(imageBytes);
-                        // If text detected, write to file
-                        if (detectedText.length() > 0) {
-                            writeResult.write(index + ": " + detectedText + "\n");
+                        // Get texts from image
+                        List<String> detectedTexts = getDetectedText(imageBytes);
+                        // If texts detected, write to file
+                        if (detectedTexts.size() > 0) {
+                            writeResult.write(index + ": " + detectedTexts.toString() + "\n");
                         }
                     }
                 }
@@ -80,10 +82,10 @@ public class TextRecognizer {
 
         try {
             // Get image from S3 bucket
-            S3Object object = s3.getObject(bucketName, index + ".jpg");
+            S3Object img = s3.getObject(bucketName, index + ".jpg");
 
             // Convert input stream to ByteBuffer
-            s3inputStream = object.getObjectContent();
+            s3inputStream = img.getObjectContent();
             System.out.println("S3: Downloaded " + index + ".jpg");
             returnBuffer = ByteBuffer.wrap(IOUtils.toByteArray(s3inputStream));
         } catch (AmazonServiceException e) {
@@ -103,8 +105,8 @@ public class TextRecognizer {
         return returnBuffer;
     }
 
-    private static String getDetectedText(ByteBuffer imageBytes) {
-        String detectedText = "";
+    private static List<String> getDetectedText(ByteBuffer imageBytes) {
+        List<String> detectedText = new ArrayList<String>();
         AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
         try {
             // Request Rekognition to detect text
@@ -115,16 +117,16 @@ public class TextRecognizer {
             DetectTextResult result = rekognitionClient.detectText(request);
             List<TextDetection> texts = result.getTextDetections();
 
-            // Iterate through texts, get first detected (full text)
+            // Iterate through texts and add to list
             for (TextDetection text : texts) {
                 System.out.println("Rekognition: text detected " + text.getDetectedText());
-                detectedText = text.getDetectedText();
-                break;
+                detectedText.add(text.getDetectedText());
             }
         } catch (AmazonRekognitionException e) {
             e.printStackTrace();
         }
-        return detectedText;
+        // Filter out duplicate texts and return
+        return detectedText.stream().distinct().collect(Collectors.toList());
     }
 
     private static List<Message> receiveMessagesFromSQS(String queueURL) {

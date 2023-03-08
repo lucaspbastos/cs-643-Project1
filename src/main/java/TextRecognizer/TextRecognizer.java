@@ -22,7 +22,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.ArrayList;
 
 public class TextRecognizer {
@@ -65,7 +64,8 @@ public class TextRecognizer {
                         List<String> detectedTexts = getDetectedText(imageBytes);
                         // If texts detected, write to file
                         if (detectedTexts.size() > 0) {
-                            writeResult.write(index + ": " + detectedTexts.toString() + "\n");
+                            writeResult.write(
+                                    index + ": " + detectedTexts.toString().replace("[", "").replace("]", "") + "\n");
                         }
                     }
                 }
@@ -106,7 +106,7 @@ public class TextRecognizer {
     }
 
     private static List<String> getDetectedText(ByteBuffer imageBytes) {
-        List<String> detectedText = new ArrayList<String>();
+        List<String> detectedTexts = new ArrayList<String>();
         AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
         try {
             // Request Rekognition to detect text
@@ -120,13 +120,13 @@ public class TextRecognizer {
             // Iterate through texts and add to list
             for (TextDetection text : texts) {
                 System.out.println("Rekognition: text detected " + text.getDetectedText());
-                detectedText.add(text.getDetectedText());
+                addNonDuplicateEntry(detectedTexts, text.getDetectedText());
             }
         } catch (AmazonRekognitionException e) {
             e.printStackTrace();
         }
         // Filter out duplicate texts and return
-        return detectedText.stream().distinct().collect(Collectors.toList());
+        return detectedTexts;
     }
 
     private static List<Message> receiveMessagesFromSQS(String queueURL) {
@@ -141,5 +141,17 @@ public class TextRecognizer {
             sqs.deleteMessage(queueUrl, m.getReceiptHandle());
         }
         return messagesList;
+    }
+
+    private static void addNonDuplicateEntry(List<String> list, String entry) {
+        // If similar or exact duplicate, do not add to list
+        for (String s : list) {
+            if (s.contains(entry)) {
+                System.out.println("File: duplicate detected " + entry);
+                return;
+            }
+        }
+        System.out.println("File: added " + entry);
+        list.add(entry);
     }
 }

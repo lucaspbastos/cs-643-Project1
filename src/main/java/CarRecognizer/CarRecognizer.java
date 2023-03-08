@@ -1,3 +1,9 @@
+/*  Lucas Bastos
+    CS 643-852
+    Professor Manoop Talasila
+    Spring 2023
+*/
+
 package CarRecognizer;
 
 import com.amazonaws.AmazonServiceException;
@@ -34,10 +40,8 @@ public class CarRecognizer {
     }
 
     private static void carRecognizerPipeline(String bucketName, String sqsName, String[] indexes) {
-        /*
-         * Read images from S3 -> send each to Rekognition -> for each, if car detected,
-         * send index as SQS message
-         */
+        // Read images from S3 -> send each to Rekognition -> for each, if car detected,
+        // send index as SQS message
         for (String index : indexes) {
             // Get image from S3 bucket
             ByteBuffer imageBytes = getImageFromS3Bucket(bucketName, index);

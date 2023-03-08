@@ -1,3 +1,8 @@
+/*  Lucas Bastos
+    CS 643-852
+    Professor Manoop Talasila
+    Spring 2023
+*/
 package TextRecognizer;
 
 import com.amazonaws.AmazonServiceException;

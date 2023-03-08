@@ -35,13 +35,13 @@ Now, the project has been installed on both instances and the target/ directory 
 
 On the TextRecognizer instance, run:
 ```
-java -cp target/original-Project1-1.0-SNAPSHOT.jar TextRecognizer.TextRecognizer
+java -cp target/Project1-1.0-SNAPSHOT.jar TextRecognizer.TextRecognizer
 ```
 The TextRecognizer program will now wait for the CarRecognizer instance to process its images and send over the image indexes through the SQS channel.
 
 Finally, on the CarRecognizer instance, run:
 ```
-java -cp target/original-Project1-1.0-SNAPSHOT.jar CarRecognizer.CarRecognizer
+java -cp target/Project1-1.0-SNAPSHOT.jar CarRecognizer.CarRecognizer
 ```
 The CarRecognizer program will pull the 10 images from the njit-cs-643 bucket, run Rekognition to detect images with cars, then send a message through the SQS channel for each image index, and ending with "-1". This will then exit the CarRecognizer program.
 

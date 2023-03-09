@@ -7,12 +7,12 @@ Spring 2023
 First, set up two EC2 instances on AWS Console Home by first going to the EC2 section to "launch instance". Name the car recognition EC2 instance as "Car Recognizer" and the text recognition EC2 instance as "Text Recognizer". Both instances can be set up with "Amazon Linux 2 Kernel 5.10 AMI 2.0.20220912.1 x86_64 HVM gp2" AMI and the "t2.micro" type. Create a .pem login key-pair (I created "bastos-key" with ED25519 type when I created the first EC2 instance). The second EC2 instance will use this same .pem key for SSH (I created a new security group set to my home IP address and opened the SSH, HTTP, HTTPS ports and then used this same security group with the second EC2 instance).
 
 ## SQS setup
-Then, set up the SQS by going to the SQS section to "create queue". Choose the FIFO type as it best fits the needs for the project, and name it "CarImageIndexQueue.fifo" Leave the configuration and encryption settings to default. Set the send/receive message queue access policies to the ARN of the LabRole IAM.
+Then, set up the SQS by going to the SQS section to "create queue". Choose the FIFO type as it best fits the needs for the project, and name it "CarImageIndexQueue.fifo" Leave the configuration and encryption settings to default. Set the send/receive message queue access policies to the ARN of the LabRole IAM (can be found by going to the IAM Management Console section).
 
 ## Environment setup
 Now connect over SSH to both EC2 instances to set up the projects. The instances require the .pem key file created earlier to connect. The public IP will change with each lab restart so the correct login will be in the EC2 instances "connect" section. 
 
-Once connected, using the credentials from AWS Academy, create a file called ~/.aws/credentials on each instance and paste the credentials. On each instance run:
+Once connected, using the credentials from AWS Academy, create a file called ~/.aws/credentials on each instance and paste the credentials. Then, on each EC2 instance run:
 
 ```
 sudo yum update
@@ -30,6 +30,20 @@ cd cs-643-Project1/
 mvn install
 ```
 
+### Optional: Local setup
+If running on another platform (such as on a local machine) or distribution, follow steps necessary with the package manager of choice or required by distribution (such as apt on Debian based distros or winget/chocolatey/scoop on Windows). AWS credentials should be created and placed in ~/.aws/credentials. The git install and clone and maven install will be the same steps. If maven does not require a dependency on Java when installing, then Java/OpenJDK must be installed as well. For example, on a macOS machine using the brew package manager:
+
+```
+brew update
+
+brew install maven git
+
+git clone https://github.com/lucaspbastos/cs-643-Project1.git
+
+cd cs-643-Project1/
+
+mvn install
+```
 ## Run Programs
 Now, the project has been installed on both instances and the target/ directory will be made with a .jar file that will run the apps.
 

@@ -24,24 +24,25 @@ import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.util.IOUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class CarRecognizer {
     public static void main(String[] args) {
         // Set bucket name, SQS name, and indexes/file names
         String bucketName = "njit-cs-643";
         String sqsName = "CarImageIndexQueue.fifo";
-        String[] indexes = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10" };
 
-        System.out.println("Started.");
-        carRecognizerPipeline(bucketName, sqsName, indexes);
-        System.out.println("Finished.");
+        carRecognizerPipeline(bucketName, sqsName);
     }
 
-    private static void carRecognizerPipeline(String bucketName, String sqsName, String[] indexes) {
+    private static void carRecognizerPipeline(String bucketName, String sqsName) {
         // Read images from S3 -> send each to Rekognition -> for each, if car detected,
         // send index as SQS message
+        System.out.println("Started.");
+        List<String> indexes = getIndexesFromS3Bucket(bucketName);
         for (String index : indexes) {
             // Get image from S3 bucket
             ByteBuffer imageBytes = getImageFromS3Bucket(bucketName, index);
@@ -54,6 +55,21 @@ public class CarRecognizer {
         }
         // Send -1 to SQS to indicate end of pipeline
         sendMessageToSQS(sqsName, "-1");
+        System.out.println("Finished.");
+    }
+
+    private static List<String> getIndexesFromS3Bucket(String bucketName) {
+        final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion("us-east-1").build();
+        List<String> indexes = new ArrayList<String>();
+        try {
+            // Get list of objects in bucket
+            indexes = s3.listObjects(bucketName).getObjectSummaries().stream().map(os -> os.getKey())
+                    .collect(Collectors.toList());
+
+        } catch (AmazonServiceException e) {
+            System.out.println(e.getMessage());
+        }
+        return indexes;
     }
 
     private static ByteBuffer getImageFromS3Bucket(String bucketName, String index) {
@@ -63,11 +79,11 @@ public class CarRecognizer {
 
         try {
             // Get image from S3 bucket
-            S3Object object = s3.getObject(bucketName, index + ".jpg");
+            S3Object object = s3.getObject(bucketName, index);
 
             // Convert input stream to ByteBuffer
             s3inputStream = object.getObjectContent();
-            System.out.println("S3: Downloaded " + index + ".jpg");
+            System.out.println("S3: Downloaded " + index);
             returnBuffer = ByteBuffer.wrap(IOUtils.toByteArray(s3inputStream));
         } catch (AmazonServiceException e) {
             System.out.println(e.getMessage());
@@ -102,7 +118,7 @@ public class CarRecognizer {
             for (Label text : texts) {
                 if (text.getName().compareTo("Car") == 0) {
                     System.out
-                            .println("Rekognition: car detected " + text.getName() + " " + text.getConfidence() + "%");
+                            .println("Rekognition: Detected " + text.getName() + " " + text.getConfidence() + "%");
                     return true;
                 }
             }

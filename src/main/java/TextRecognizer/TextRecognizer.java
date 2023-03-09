@@ -35,22 +35,20 @@ public class TextRecognizer {
         String bucketName = "njit-cs-643";
         String sqsName = "CarImageIndexQueue.fifo";
 
-        System.out.println("Started.");
         textRecognizerPipeline(bucketName, sqsName);
-        System.out.println("Finished.");
     }
 
     private static void textRecognizerPipeline(String bucketName, String sqsName) {
         LocalDateTime currentDateTime = LocalDateTime.now();
-        Boolean run = true;
 
+        System.out.println("Started.");
         try {
             // Create file to write results to
             File result = new File("results/run-" + currentDateTime);
             FileWriter writeResult = new FileWriter(result);
 
             // Loop until end of sequence
-            while (run) {
+            while (true) {
                 List<Message> messagesList = receiveMessagesFromSQS(sqsName);
                 // If there are messages, process them
                 if (messagesList.size() > 0) {
@@ -59,9 +57,8 @@ public class TextRecognizer {
                         // If end of sequence, close file and break from loop
                         if (index.compareTo("-1") == 0) {
                             System.out.println("End of sequence. File written to " + result.toString());
-                            run = false;
                             writeResult.close();
-                            break;
+                            return;
                         }
                         // Get image from S3 bucket
                         ByteBuffer imageBytes = getImageFromS3Bucket(bucketName, index);
@@ -87,11 +84,11 @@ public class TextRecognizer {
 
         try {
             // Get image from S3 bucket
-            S3Object img = s3.getObject(bucketName, index + ".jpg");
+            S3Object img = s3.getObject(bucketName, index);
 
             // Convert input stream to ByteBuffer
             s3inputStream = img.getObjectContent();
-            System.out.println("S3: Downloaded " + index + ".jpg");
+            System.out.println("S3: Downloaded " + index);
             returnBuffer = ByteBuffer.wrap(IOUtils.toByteArray(s3inputStream));
         } catch (AmazonServiceException e) {
             System.out.println(e.getMessage());
@@ -124,7 +121,7 @@ public class TextRecognizer {
 
             // Iterate through texts and add to list
             for (TextDetection text : texts) {
-                System.out.println("Rekognition: text detected " + text.getDetectedText());
+                System.out.println("Rekognition: Text detected \"" + text.getDetectedText() + "\"");
                 addNonDuplicateEntry(detectedTexts, text.getDetectedText());
             }
         } catch (AmazonRekognitionException e) {
@@ -142,7 +139,7 @@ public class TextRecognizer {
         List<Message> messagesList = sqs.receiveMessage(queueUrl).getMessages();
         // Delete messages in queue
         for (Message m : messagesList) {
-            System.out.println("SQS: received " + m.getBody());
+            System.out.println("SQS: received \"" + m.getBody() + "\"");
             sqs.deleteMessage(queueUrl, m.getReceiptHandle());
         }
         return messagesList;
@@ -152,11 +149,11 @@ public class TextRecognizer {
         // If similar or exact duplicate, do not add to list
         for (String s : list) {
             if (s.contains(entry)) {
-                System.out.println("File: duplicate detected " + entry);
+                System.out.println("File: Duplicate detected and not added \"" + entry + "\"");
                 return;
             }
         }
-        System.out.println("File: added " + entry);
+        System.out.println("File: Added \"" + entry + "\"");
         list.add(entry);
     }
 }
